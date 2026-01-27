@@ -1,0 +1,2 @@
+curl -X POST -H "Content-Type: application/json" -d '{"name": "Kevil",
+     "password": "abc"}' http://localhost:8081/api/add-broker
