@@ -579,4 +579,37 @@ const deleteAllClosedOrders = asyncHandler(async (req, res) => {
   }
 });
 
-export { getOrderInstrument, postOrder, updateOrder, exitAllOpenOrder, deleteOrder, deleteAllClosedOrders };
+const updateClosedOrderPrices = asyncHandler(async (req, res) => {
+  const { order_id, price, closed_ltp } = req.body;
+
+  if (!order_id) {
+    return res.status(400).json({ success: false, message: "Order ID required" });
+  }
+
+  // Find order
+  const order = await Order.findById(order_id);
+  if (!order) {
+    return res.status(404).json({ success: false, message: "Order not found" });
+  }
+
+  // Update logic: Only update if new values are provided
+  if (price !== undefined && price !== null) {
+      order.price = Number(price);
+      order.average_price = Number(price); // Usually same for manual correction
+  }
+
+  if (closed_ltp !== undefined && closed_ltp !== null) {
+      order.closed_ltp = Number(closed_ltp);
+  }
+
+  // We are NOT recalculating funds here as this is a manual correction for CLOSED orders.
+  // Assuming this is strictly for record-keeping fixes as requested.
+
+  order.updatedAt = new Date();
+  await order.save();
+
+  return res.status(200).json({ success: true, message: "Prices updated successfully", order });
+});
+
+export { getOrderInstrument, postOrder, updateOrder, exitAllOpenOrder, deleteOrder, deleteAllClosedOrders, updateClosedOrderPrices };
+

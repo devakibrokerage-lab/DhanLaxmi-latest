@@ -1,4 +1,4 @@
-import { postOrder, getOrderInstrument, updateOrder, exitAllOpenOrder, deleteOrder, deleteAllClosedOrders } from '../Controllers/orderController.js';
+import { getOrderInstrument, postOrder, updateOrder, exitAllOpenOrder, deleteOrder, deleteAllClosedOrders, updateClosedOrderPrices } from '../Controllers/OrderController.js';
 import express from "express";
 
 const router = express.Router();
@@ -11,5 +11,8 @@ router.put('/exitAllOpenOrder', exitAllOpenOrder);
 // Delete Routes
 router.post('/deleteOrder', deleteOrder);
 router.post('/deleteAllClosedOrders', deleteAllClosedOrders);
+
+// Update Closed Order Prices (Safe Manual Edit)
+router.post('/updateClosedOrderPrices', updateClosedOrderPrices);
 
 export default router;

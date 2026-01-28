@@ -29,7 +29,7 @@ const OptionStrikeBottomWindow = ({
     const inputRef = useRef(null);
 
     // --- Context & Role ---
-    const isMarketOpen = logMarketStatus();
+    const isMarketOpen = logMarketStatus(underlyingStock?.segment);
     const userString = localStorage.getItem('loggedInUser');
     const userObject = userString ? JSON.parse(userString) : {};
     const userRole = userObject.role;
@@ -364,7 +364,7 @@ const OptionStrikeBottomWindow = ({
                         <p className="text-xs text-[var(--text-muted)] mt-1">Current Market Price (CMP)</p>
                     </div>
 
-                    {/* Buy/Sell Toggle */}
+                    {/* Buy/Sell Toggle: Hide Sell for Customers (All items here are Options) */}
                     <div className="flex space-x-4 mb-6">
                         <button
                             className={`flex-1 p-2 rounded-lg text-xs font-semibold transition ${actionTab === 'Buy' ? 'bg-green-600 text-white shadow-lg' : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
@@ -372,7 +372,7 @@ const OptionStrikeBottomWindow = ({
                         >
                             BUY
                         </button>
-                        {userRole === 'broker' && (
+                        {userRole !== 'customer' && (
                             <button
                                 className={`flex-1 p-2 rounded-lg text-xs font-semibold transition ${actionTab === 'Sell' ? 'bg-red-600 text-white shadow-lg' : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
                                 onClick={() => setActionTab('Sell')}

@@ -138,7 +138,7 @@ const SwipeableClosedOrderItem = ({ data, onSelect, onDelete }) => {
 // --- Internal Component: ClosedOrderBottomWindow ---
 const ClosedOrderBottomWindow = ({ selectedOrder, onClose }) => {
     if (!selectedOrder) return null;
-    console.log(selectedOrder);
+    //console.log(selectedOrder);
 
     // 1. Get User Role for Permissions
     const userString = localStorage.getItem('loggedInUser');
@@ -148,6 +148,11 @@ const ClosedOrderBottomWindow = ({ selectedOrder, onClose }) => {
 
     const [submitting, setSubmitting] = useState(false);
     const [feedback, setFeedback] = useState(null);
+
+    // --- Price Editing State ---
+    const [isEditing, setIsEditing] = useState(false);
+    const [editEntry, setEditEntry] = useState('');
+    const [editExit, setEditExit] = useState('');
 
     // For option chain orders, expiry is in meta.expiry
     // For regular orders, expiry is in meta.selectedStock.expiry
@@ -170,7 +175,20 @@ const ClosedOrderBottomWindow = ({ selectedOrder, onClose }) => {
 
     const { qty, entryPrice, exitPrice } = getOrderValues(selectedOrder);
 
+    // Initialize edit values on mount/change
+    useEffect(() => {
+        setEditEntry(entryPrice);
+        setEditExit(exitPrice);
+        setIsEditing(false); // Reset edit mode when order changes
+        setFeedback(null);
+    }, [selectedOrder, entryPrice, exitPrice]);
+
+
     // 🔹 EXIT P&L + FULL BROKERAGE (entry + exit) helper se
+    // Calculate P&L based on EDIT values if editing, else original
+    const currentEntry = isEditing ? Number(editEntry) : entryPrice;
+    const currentExit = isEditing ? Number(editExit) : exitPrice;
+
     const {
         exitValue,
         brokerageEntry,
@@ -180,8 +198,8 @@ const ClosedOrderBottomWindow = ({ selectedOrder, onClose }) => {
         pct
     } = calculateExitBrokerageAndPnL({
         side: orderSide,
-        avgPrice: entryPrice,
-        exitPrice,
+        avgPrice: currentEntry,
+        exitPrice: currentExit,
         qty
     });
 
@@ -258,6 +276,54 @@ const ClosedOrderBottomWindow = ({ selectedOrder, onClose }) => {
         }
     };
 
+    // --- SAVE EDITED PRICES ---
+    const handleSavePrices = async () => {
+        setSubmitting(true);
+        setFeedback(null);
+        try {
+            const token = localStorage.getItem("token") || null;
+            const apiBase = import.meta.env.VITE_REACT_APP_API_URL || "";
+            // Use the NEW safe endpoint
+            const endpoint = `${apiBase}/api/orders/updateClosedOrderPrices`;
+
+            const payload = {
+                order_id: orderId,
+                price: Number(editEntry),
+                closed_ltp: Number(editExit)
+            };
+
+            const res = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
+                },
+                body: JSON.stringify(payload)
+            });
+
+            let body = null;
+            try { body = await res.json(); } catch (e) { body = null; }
+
+            if (!res.ok) throw new Error(body?.message || body?.error || `Server error: ${res.status}`);
+            if (body && body.success === false) throw new Error(body.message || 'Failed to update prices');
+
+            setFeedback({ type: 'success', message: 'Prices Updated Successfully!' });
+            setIsEditing(false);
+
+            // Notify app to refresh list
+            try { window.dispatchEvent(new CustomEvent('orders:changed', { detail: { order: body?.order } })); } catch (e) { }
+
+            setTimeout(() => { onClose(); }, 500);
+
+        } catch (err) {
+            console.error("Update error:", err);
+            setFeedback({ type: 'error', message: `Failed to update: ${err.message}` });
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+
     return (
         <div className="open-order-bottom-window fixed bottom-0 left-0 right-0 z-50 bg-[var(--bg-card)] border-t border-[var(--border-color)] shadow-2xl p-4 transition-transform duration-300 max-h-[90vh] overflow-y-auto">
             {/* Header */}
@@ -266,9 +332,21 @@ const ClosedOrderBottomWindow = ({ selectedOrder, onClose }) => {
                     <h3 className="text-base sm:text-lg text-[var(--text-primary)] font-bold tracking-wide truncate">{tradingsymbol}</h3>
                     <span className="text-xs text-[var(--text-secondary)]">({orderSide})</span>
                 </div>
-                <button onClick={onClose} className="p-1 rounded-full text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition flex-shrink-0">
-                    <XCircle className="w-6 h-6" />
-                </button>
+                <div className="flex items-center gap-2">
+                    {/* Toggle Edit Mode */}
+                    {!isEditing && (userRole === 'broker') && (
+                        <button
+                            onClick={() => setIsEditing(true)}
+                            className="p-1.5 rounded-full text-indigo-400 hover:bg-indigo-500/10 transition"
+                            title="Edit Prices"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-pencil"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /><path d="m15 5 4 4" /></svg>
+                        </button>
+                    )}
+                    <button onClick={onClose} className="p-1 rounded-full text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition flex-shrink-0">
+                        <XCircle className="w-6 h-6" />
+                    </button>
+                </div>
             </div>
 
             {/* Feedback */}
@@ -278,12 +356,12 @@ const ClosedOrderBottomWindow = ({ selectedOrder, onClose }) => {
                 </div>
             )}
 
-            {/* P&L Display */}
+            {/* P&L Display - LIVE UPDATE DURING EDIT */}
             <div className="mb-4 flex justify-between items-end">
                 <div>
                     <p className="text-xl font-bold">
                         <span className="text-[var(--text-secondary)] mr-1">₹</span>
-                        <span className="text-[var(--text-primary)]">{exitPrice.toFixed(2)}</span>
+                        <span className="text-[var(--text-primary)]">{isEditing ? currentExit.toFixed(2) : exitPrice.toFixed(2)}</span>
                     </p>
                     <p className="text-xs text-[var(--text-muted)]">Exit Price</p>
                 </div>
@@ -314,46 +392,93 @@ const ClosedOrderBottomWindow = ({ selectedOrder, onClose }) => {
             </div>
 
             {/* Details Grid (Compact) */}
-            <div className="mb-2 p-2 bg-[var(--bg-secondary)] rounded-md text-xs">
+            <div className="mb-2 p-2 bg-[var(--bg-secondary)] rounded-md text-xs space-y-1">
                 <DetailRow label="Quantity" value={`${qty} shares`} />
-                <DetailRow label="Lots (Size)" value={`${lots ?? '-'} (${lot_size ?? '-'})`} />
-                <DetailRow label="Entry Price" value={money(entryPrice)} />
-                <DetailRow label="Exit Price" value={money(exitPrice)} />
+
+                {/* EDITABLE ENTRY PRICE */}
+                <div className="flex justify-between items-center py-0.5 px-2">
+                    <div className="flex items-center text-[var(--text-secondary)]"><span className="text-xs">Entry Price</span></div>
+                    {isEditing ? (
+                        <input
+                            type="number"
+                            value={editEntry}
+                            onChange={(e) => setEditEntry(e.target.value)}
+                            className="bg-[var(--bg-input)] border border-[var(--border-color)] rounded px-1 py-0.5 text-right w-24 text-[var(--text-primary)] focus:outline-none focus:border-indigo-500"
+                        />
+                    ) : (
+                        <span className="text-sm font-medium text-[var(--text-primary)]">{money(entryPrice)}</span>
+                    )}
+                </div>
+
+                {/* EDITABLE EXIT PRICE */}
+                <div className="flex justify-between items-center py-0.5 px-2">
+                    <div className="flex items-center text-[var(--text-secondary)]"><span className="text-xs">Exit Price</span></div>
+                    {isEditing ? (
+                        <input
+                            type="number"
+                            value={editExit}
+                            onChange={(e) => setEditExit(e.target.value)}
+                            className="bg-[var(--bg-input)] border border-[var(--border-color)] rounded px-1 py-0.5 text-right w-24 text-[var(--text-primary)] focus:outline-none focus:border-indigo-500"
+                        />
+                    ) : (
+                        <span className="text-sm font-medium text-[var(--text-primary)]">{money(exitPrice)}</span>
+                    )}
+                </div>
+
                 <DetailRow label="Type" value={orderSide} />
                 <DetailRow label="Product" value={productType} colorClass="text-indigo-500" />
                 <DetailRow label="From" value={came_From} colorClass="text-indigo-500" />
                 <DetailRow label="Closed At" value={closedTime} colorClass="text-[var(--text-muted)] text-xs" />
                 <DetailRow label="Expire Date" value={formattedStockExpireDate} colorClass="text-[var(--text-muted)] text-xs" />
-                {selectedOrder.exit_reason && <DetailRow label="exit_reason" value={selectedOrder.exit_reason} colorClass="text-[var(--text-muted)] text-xs" />}
-
             </div>
 
             {/* Actions */}
             <div className="flex space-x-2 mt-4">
-                <button
-                    onClick={onClose}
-                    className="flex-1 p-3 rounded-lg bg-[var(--bg-secondary)] text-[var(--text-primary)] font-semibold hover:bg-[var(--bg-hover)] transition border border-[var(--border-color)]"
-                >
-                    Close
-                </button>
+                {isEditing ? (
+                    <>
+                        <button
+                            onClick={() => setIsEditing(false)}
+                            className="flex-1 p-3 rounded-lg bg-[var(--bg-secondary)] text-[var(--text-secondary)] font-semibold hover:bg-[var(--bg-hover)] transition border border-[var(--border-color)]"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={handleSavePrices}
+                            disabled={submitting}
+                            className={`flex-1 p-3 rounded-lg font-semibold text-white transition flex items-center justify-center gap-2
+                             ${submitting ? 'bg-indigo-600/50 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 shadow-lg shadow-green-900/20'}`}
+                        >
+                            {submitting ? 'Saving...' : 'Save Changes'}
+                        </button>
+                    </>
+                ) : (
+                    <>
+                        <button
+                            onClick={onClose}
+                            className="flex-1 p-3 rounded-lg bg-[var(--bg-secondary)] text-[var(--text-primary)] font-semibold hover:bg-[var(--bg-hover)] transition border border-[var(--border-color)]"
+                        >
+                            Close
+                        </button>
 
-                {/* Condition: Not Hold, Not Overnight AND User is Broker */}
-                {((came_From !== 'Hold' && came_From !== 'Overnight' && userRole === 'broker') || isOpen) && (
-                    <button
-                        onClick={handleReopen}
-                        disabled={submitting}
-                        className={`flex-1 p-3 rounded-lg font-semibold text-white transition flex items-center justify-center gap-2
-                        ${submitting ? 'bg-indigo-600/50 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-900/20'}`}
-                    >
-                        {submitting ? (
-                            <>Processing...</>
-                        ) : (
-                            <>
-                                <RefreshCw className="w-4 h-4" />
-                                To Open
-                            </>
+                        {/* Condition: Not Hold, Not Overnight AND User is Broker */}
+                        {((came_From !== 'Hold' && came_From !== 'Overnight' && userRole === 'broker') || isOpen) && (
+                            <button
+                                onClick={handleReopen}
+                                disabled={submitting}
+                                className={`flex-1 p-3 rounded-lg font-semibold text-white transition flex items-center justify-center gap-2
+                                ${submitting ? 'bg-indigo-600/50 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-900/20'}`}
+                            >
+                                {submitting ? (
+                                    <>Processing...</>
+                                ) : (
+                                    <>
+                                        <RefreshCw className="w-4 h-4" />
+                                        To Open
+                                    </>
+                                )}
+                            </button>
                         )}
-                    </button>
+                    </>
                 )}
             </div>
         </div>
@@ -553,7 +678,7 @@ export default function ClosedOrder() {
                                 />
                             ))}
                         </div>
-                    )}}
+                    )}
 
                     {selectedOrderData && (
                         <ClosedOrderBottomWindow

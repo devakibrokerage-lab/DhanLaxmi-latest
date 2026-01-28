@@ -38,7 +38,7 @@ function Summery({
   const inputRef = useRef(null);
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState(null);
-  const isOpen = logMarketStatus();
+  const isOpen = logMarketStatus(selectedStock?.segment);
 
   // ---------- FRESH DATA HELPER ----------
   // Gets the latest tick data directly from ticksRef (Kite uses instrument_token)
@@ -363,12 +363,15 @@ function Summery({
         >
           BUY
         </button>
-        <button
-          className={`flex-1 p-2 rounded-lg text-xs font-semibold transition ${actionTab === 'Sell' ? 'bg-red-600 text-white shadow-lg' : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
-          onClick={() => setActionTab('Sell')}
-        >
-          SELL
-        </button>
+        {/* Hide Sell for Customers trading F&O */}
+        {!(userRole === 'customer' && (selectedStock?.segment?.includes('FUT') || selectedStock?.segment?.includes('OPT') || selectedStock?.instrument_type === 'FUT' || ['CE', 'PE'].includes(selectedStock?.instrument_type))) && (
+          <button
+            className={`flex-1 p-2 rounded-lg text-xs font-semibold transition ${actionTab === 'Sell' ? 'bg-red-600 text-white shadow-lg' : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+            onClick={() => setActionTab('Sell')}
+          >
+            SELL
+          </button>
+        )}
       </div>
 
       {/* Product type */}

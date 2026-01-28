@@ -162,6 +162,12 @@ function BottomWindow({
 
     const hasOptionChain = true; // Placeholder logic, refined by backend data usually
 
+    const userString = localStorage.getItem('loggedInUser');
+    const userRole = userString ? JSON.parse(userString).role : '';
+    const isCustomer = userRole === 'customer';
+    // Helper to identify F&O
+    const isFnO = selectedStock?.segment?.includes('FUT') || selectedStock?.segment?.includes('OPT') || selectedStock?.instrument_type === 'FUT' || selectedStock?.instrument_type === 'CE' || selectedStock?.instrument_type === 'PE';
+
     return (
       <div className="flex flex-col py-2">
         {/* Market Depth - Navigates to new view now */}
@@ -187,14 +193,16 @@ function BottomWindow({
           <span className="text-[var(--text-primary)] font-semibold">Buy</span>
         </button>
 
-        {/* Sell */}
-        <button
-          onClick={handleSell}
-          className="w-full flex items-center gap-3 p-4 hover:bg-[var(--bg-secondary)]/50 transition text-left"
-        >
-          <Tag className="w-5 h-5 text-[var(--text-secondary)]" />
-          <span className="text-[var(--text-primary)] font-semibold">Sell</span>
-        </button>
+        {/* Sell - Hide for Customers in F&O */}
+        {!(isCustomer && isFnO) && (
+          <button
+            onClick={handleSell}
+            className="w-full flex items-center gap-3 p-4 hover:bg-[var(--bg-secondary)]/50 transition text-left"
+          >
+            <Tag className="w-5 h-5 text-[var(--text-secondary)]" />
+            <span className="text-[var(--text-primary)] font-semibold">Sell</span>
+          </button>
+        )}
 
         {/* Option Chain + Charts */}
         {hasOptionChain && (
