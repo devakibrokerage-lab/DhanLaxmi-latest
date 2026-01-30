@@ -138,7 +138,7 @@ const LoginForm = () => {
         // Preload secondary pages in background
         preloadSecondaryPages();
 
-        setApiMessage({ text: ` Login successful! Redirecting… Role: ${role}`, type: 'success' });
+        setApiMessage("Login successful..");
 
         // 🔁 CHANGED: broker -> /broker/:id/customerDetail ; customer -> /watchlist
         const redirectionPath = computeRedirect(role, associatedBrokerStringId);
