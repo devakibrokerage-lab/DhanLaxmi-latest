@@ -87,6 +87,12 @@ const getBrokerCustomers = asyncHandler(async (req, res) => {
   console.log('[getBrokerCustomers] Target Broker ID:', targetBrokerId);
   console.log('[getBrokerCustomers] Broker name:', req.user.name);
 
+  // Fetch broker details for UI branding (Organization Name)
+  let brokerDetails = null;
+  if (targetBrokerId) {
+      brokerDetails = await BrokerModel.findById(targetBrokerId).select('name organization_name login_id');
+  }
+
   // Debug: Get ALL customers to see what broker IDs they have
   const allCustomers = await CustomerModel.find({}).select('customer_id name attached_broker_id +password');
   console.log('[getBrokerCustomers] ALL customers in DB:', allCustomers.map(c => ({
@@ -117,6 +123,11 @@ const getBrokerCustomers = asyncHandler(async (req, res) => {
     success: true,
     customers: formattedCustomers,
     count: customers.length,
+    brokerDetails: brokerDetails ? {
+        name: brokerDetails.name,
+        organizationName: brokerDetails.organization_name || 'DHANLAXMI',
+        login_id: brokerDetails.login_id
+    } : null
   });
 });
 

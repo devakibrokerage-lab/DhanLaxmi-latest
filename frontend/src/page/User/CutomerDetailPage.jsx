@@ -146,6 +146,15 @@ export default function CustomerDetailsPage() {
 
         console.log(res)
         setCustomers(res.data?.customers || []);
+
+        // Update Branding if Broker Details are provided
+        if (res.data?.brokerDetails?.organizationName) {
+          console.log('[CustomerDetail] Setting Organization Name:', res.data.brokerDetails.organizationName);
+          localStorage.setItem('organizationName', res.data.brokerDetails.organizationName);
+          // Trigger storage event manually or dispatch custom event for NavBar if needed
+          window.dispatchEvent(new Event('storage'));
+        }
+
         console.log(customers)
       } catch (e) {
         setErrText(e?.response?.data?.message || '❌ Failed to load customers.');
