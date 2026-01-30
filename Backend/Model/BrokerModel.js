@@ -24,6 +24,11 @@ const BrokerSchema = new Schema({
         type: String,
         required: true,
     },
+
+    organization_name: {
+        type: String, 
+        required: true,
+    },
     
     // Broker/Admin role
     role: {

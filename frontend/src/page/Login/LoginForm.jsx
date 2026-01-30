@@ -111,8 +111,18 @@ const LoginForm = () => {
       );
 
       if (res.data?.success) {
-        const { name, role, token, associatedBrokerStringId } = res.data;
+        console.log('[LoginForm] Response Data:', res.data); // Debug Log
+        const { name, role, token, associatedBrokerStringId, organizationName } = res.data;
         const user = { id: formData.identifier, name, role };
+
+        console.log('[LoginForm] Organization Name extracted:', organizationName); // Debug Log
+
+        if (organizationName) {
+          localStorage.setItem('organizationName', organizationName);
+        } else {
+          console.warn('[LoginForm] Organization Name missing, using default.');
+          localStorage.setItem('organizationName', 'DHANLAXMI');
+        }
 
         localStorage.setItem('token', token);
         localStorage.setItem('authToken', token);
@@ -132,7 +142,11 @@ const LoginForm = () => {
 
         // 🔁 CHANGED: broker -> /broker/:id/customerDetail ; customer -> /watchlist
         const redirectionPath = computeRedirect(role, associatedBrokerStringId);
-        setTimeout(() => (window.location.href = redirectionPath), 600);
+
+        // Use navigate for smooth SPA transition instead of full reload
+        setTimeout(() => {
+          navigate(redirectionPath, { replace: true });
+        }, 600);
       } else {
         setApiMessage({ text: res.data?.message || 'Login failed.', type: 'error' });
       }
@@ -175,7 +189,7 @@ const LoginForm = () => {
             className={`p-3 mb-4 rounded-lg font-semibold text-sm text-center ${apiMessage.type === 'success' ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'
               }`}
           >
-            Loggin Successfully..
+            {apiMessage.text}
           </div>
         )}
 

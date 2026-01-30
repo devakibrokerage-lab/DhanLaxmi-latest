@@ -23,6 +23,7 @@ const ChartPage = lazy(() => import('./page/Chart/ChartPage.jsx'));
 const BrockerDetailPage = lazy(() => import('./page/User/BrockerDetailPage.jsx'));
 const CustomerDetailsPage = lazy(() => import('./page/User/CutomerDetailPage.jsx'));
 const RecycleBin = lazy(() => import('./page/User/RecycleBin.jsx'));
+const BrokerRecycleBin = lazy(() => import('./page/User/BrokerRecycleBin.jsx'));
 const AdminRegistrations = lazy(() => import('./page/Admin/AdminRegistrations.jsx'));
 const AdminAccessToken = lazy(() => import('./page/Admin/AdminAccessToken.jsx'));
 
@@ -42,15 +43,24 @@ export const preloadSecondaryPages = () => {
 
 // Minimal loading fallback (only for lazy-loaded pages)
 const PageLoader = () => (
-    <div style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        height: '100vh',
-        background: 'var(--bg-primary)',
-        color: 'var(--text-primary)'
-    }}>
-        <div>Loading...</div>
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[var(--bg-primary)] transition-colors duration-300">
+        <div className="flex flex-col items-center animate-fade-in">
+            {/* Logo Container */}
+            <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/30 mb-6 animate-bounce-slight">
+                <span className="text-white font-bold text-3xl font-sans tracking-tight">DL</span>
+            </div>
+
+            {/* Loading Spinner */}
+            <div className="relative w-12 h-12">
+                <div className="absolute inset-0 border-4 border-indigo-200 rounded-full"></div>
+                <div className="absolute inset-0 border-4 border-indigo-600 rounded-full border-t-transparent animate-spin"></div>
+            </div>
+
+            {/* Text */}
+            <h3 className="mt-4 text-[var(--text-secondary)] font-medium text-sm tracking-widest uppercase animate-pulse">
+                Loading Application...
+            </h3>
+        </div>
     </div>
 );
 
@@ -70,6 +80,7 @@ function App() {
                             <Route path="/customerDetail" element={<CustomerDetailsPage />} />
                             <Route path="/broker/:brokerId/customerDetail" element={<CustomerDetailsPage />} />
                             <Route path="/recycle-bin" element={<RecycleBin />} />
+                            <Route path="/broker-recycle-bin" element={<BrokerRecycleBin />} />
 
                             {/* Admin Routes */}
                             <Route path="/admin/registrations" element={<AdminRegistrations />} />
@@ -82,6 +93,7 @@ function App() {
                                     </Layout>
                                 }
                             />
+
 
                             <Route
                                 path="/portfolio"

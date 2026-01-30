@@ -42,8 +42,7 @@ const DeletedCustomerSchema = new Schema({
     },
     
     deleted_by: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Broker', // Broker who deleted this customer
+        type: String, // Changed to String to allow 'SuperBroker' or Broker ID
         required: true,
     },
     

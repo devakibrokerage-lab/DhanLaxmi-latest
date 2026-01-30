@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { API_URL } from '../../config.js';
+import ConfirmDeleteBrokerDialog from './ConfirmDeleteBrokerDialog.jsx';
 
 // ---------------- Add Broker Modal ----------------
 function generateDummyId() {
@@ -10,7 +11,7 @@ function generateDummyId() {
 }
 
 const AddBrokerModal = ({ isVisible, onClose, onBrokerAdded, isSetupMode = false }) => {
-  const [formData, setFormData] = useState({ name: '', password: '' });
+  const [formData, setFormData] = useState({ name: '', organization_name: '', password: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -24,8 +25,8 @@ const AddBrokerModal = ({ isVisible, onClose, onBrokerAdded, isSetupMode = false
 
   const handleAddSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.name || !formData.password) {
-      setMessage('Please enter both name and password.');
+    if (!formData.name || !formData.organization_name || !formData.password) {
+      setMessage('Please enter name, organization, and password.');
       return;
     }
     setIsSubmitting(true);
@@ -43,6 +44,7 @@ const AddBrokerModal = ({ isVisible, onClose, onBrokerAdded, isSetupMode = false
         const newBroker = response.data.newBroker || {
           id: generateDummyId(),
           name: formData.name,
+          organization_name: formData.organization_name,
           password: formData.password
         };
 
@@ -50,7 +52,7 @@ const AddBrokerModal = ({ isVisible, onClose, onBrokerAdded, isSetupMode = false
         onBrokerAdded(newBroker);
 
         setMessage(`✅ Success! Broker added. Login ID: ${newBroker.id}.`);
-        setFormData({ name: '', password: '' });
+        setFormData({ name: '', organization_name: '', password: '' });
 
         // Close modal automatically after success if not setup mode
         if (!isSetupMode) {
@@ -100,6 +102,20 @@ const AddBrokerModal = ({ isVisible, onClose, onBrokerAdded, isSetupMode = false
           </div>
 
           <div>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Organization Name</label>
+            <input
+              type="text"
+              name="organization_name"
+              value={formData.organization_name}
+              onChange={handleChange}
+              placeholder="Organization / Company Name"
+              className="w-full p-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[var(--text-primary)] focus:ring-indigo-500 focus:border-indigo-500"
+              disabled={isSubmitting}
+              required
+            />
+          </div>
+
+          <div>
             <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Password</label>
             <input
               type="password"
@@ -136,6 +152,9 @@ const BrokerDetailsPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
+
+  // State for Delete Dialog
+  const [brokerToDelete, setBrokerToDelete] = useState(null);
 
   const loggedInUserName = (() => {
     try {
@@ -214,6 +233,12 @@ const BrokerDetailsPage = () => {
     alert(`Edit action on Broker ID: ${brokerId}`);
   };
 
+  // Callback when delete is successful
+  const onBrokerDeleted = (deletedId) => {
+    setBrokers(prev => prev.filter(b => b.id !== deletedId));
+    // Optional: Show a toast or small notification
+  };
+
   // --- RENDER LOGIC ---
 
   if (loading && brokers.length === 0) {
@@ -248,15 +273,22 @@ const BrokerDetailsPage = () => {
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] p-4 md:p-8 flex flex-col ">
       {/* Header */}
-      <header className="mb-4 flex justify-between items-center">
+      <header className="mb-4 flex flex-col md:flex-row gap-4">
         <h1 className="text-2xl md:text-3xl font-bold text-[var(--text-primary)]">
           Broker Management <span className="text-sm text-[var(--text-secondary)] ml-2">({loggedInUserName})</span>
         </h1>
-        <div className="hidden md:flex items-center">
-          <button onClick={() => setShowAddModal(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-4 rounded-lg font-semibold transition duration-150 flex items-center space-x-2">
-            <i className="fas fa-plus"></i>
-            <span>Add New Broker</span>
+        <div className="flex space-x-3">
+          <button
+            onClick={() => navigate('/broker-recycle-bin')}
+            className="bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded-lg font-semibold transition duration-150 flex items-center space-x-2"
+          >
+            {/* <i className="fas fa-trash-restore"></i> */}
+            <span className="">Recycle Bin</span>
           </button>
+          {/* <button onClick={() => setShowAddModal(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-4 rounded-lg font-semibold transition duration-150 flex items-center space-x-2">
+            <i className="fas fa-plus"></i>
+            <span className="hidden md:inline">Add New Broker</span>
+          </button> */}
         </div>
       </header>
 
@@ -266,11 +298,22 @@ const BrokerDetailsPage = () => {
           <div key={broker.id} className="bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border-color)] shadow-md hover:bg-[var(--bg-hover)] transition">
             <div className="flex flex-wrap justify-between items-center">
               <div className="flex flex-col md:flex-row gap-2 md:gap-8">
-                <p className="text-[var(--text-primary)] font-medium text-base"><span className="text-indigo-400 font-semibold">ID:</span> {broker.id}</p>
-                <p className="text-[var(--text-secondary)] font-medium text-base">Name: {broker.name}</p>
-                {/* Password usually shouldn't be shown, but keeping per your request */}
+                <div className="flex items-center gap-2">
+                  <p className="text-[var(--text-primary)] font-medium text-base"><span className="text-indigo-400 font-semibold">ID:</span> {broker.id}</p>
+                  <button onClick={() => navigator.clipboard.writeText(broker.id)} className="text-gray-400 hover:text-white transition" title="Copy ID">
+                    <i className="fas fa-copy"></i>
+                  </button>
+                </div>
+
+                <p className="text-[var(--text-secondary)] font-medium text-base"><span className="text-indigo-400 font-semibold">Name:</span> {broker.name}</p>
+
                 {broker.password && (
-                  <p className="text-[var(--text-secondary)] font-medium text-base"><span className="text-indigo-400 font-semibold">Pass:</span> {broker.password}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-[var(--text-secondary)] font-medium text-base"><span className="text-indigo-400 font-semibold">Pass:</span> {broker.password}</p>
+                    <button onClick={() => navigator.clipboard.writeText(broker.password)} className="text-gray-400 hover:text-white transition" title="Copy Password">
+                      <i className="fas fa-copy"></i>
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
@@ -278,8 +321,14 @@ const BrokerDetailsPage = () => {
               <button onClick={() => openBrokerCustomers(broker)} className="bg-indigo-600 hover:bg-indigo-700 text-white py-1 px-4 rounded-md text-sm transition">
                 View Customers
               </button>
-              <button onClick={() => handleEdit(broker.id)} className="bg-red-600 hover:bg-red-700 text-white py-1 px-4 rounded-md text-sm transition">
+              {/* <button onClick={() => handleEdit(broker.id)} className="bg-blue-600 hover:bg-blue-700 text-white py-1 px-4 rounded-md text-sm transition">
                 Edit
+              </button> */}
+              <button
+                onClick={() => setBrokerToDelete(broker)}
+                className="bg-red-600 hover:bg-red-700 text-white py-1 px-4 rounded-md text-sm transition"
+              >
+                Delete
               </button>
             </div>
           </div>
@@ -292,6 +341,14 @@ const BrokerDetailsPage = () => {
         onClose={() => setShowAddModal(false)}
         onBrokerAdded={handleNewBrokerAdded}
         isSetupMode={false}
+      />
+
+      {/* Confirm Delete Dialog */}
+      <ConfirmDeleteBrokerDialog
+        isVisible={!!brokerToDelete}
+        broker={brokerToDelete}
+        onClose={() => setBrokerToDelete(null)}
+        onDeleted={onBrokerDeleted}
       />
 
       {/* Mobile FAB */}

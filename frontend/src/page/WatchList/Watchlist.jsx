@@ -704,7 +704,7 @@ function Watchlist() {
   const userString = localStorage.getItem('loggedInUser');
   const userObject = userString ? JSON.parse(userString) : {};
   const userRole = userObject.role;
-
+ const organizationName = localStorage.getItem('organizationName');
   return (
     <div className="w-full h-full bg-[var(--bg-primary)] md:w-1/2 lg:w-3/12 md:border-r border-[var(--border-color)] flex flex-col relative min-h-0">
 
@@ -716,16 +716,16 @@ function Watchlist() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-9 h-9 bg-indigo-600 rounded-lg flex items-center justify-center border border-[var(--border-color)]">
-              <span className="text-white font-bold text-lg font-sans">DL</span>
+              <span className="text-white font-bold text-lg font-sans">{organizationName.charAt(0).toUpperCase()}</span>
             </div>
             <div className="flex flex-col">
-              <h3 className="text-lg font-bold text-[var(--text-primary)] tracking-wide leading-none">DHANLAXMI</h3>
+              <h3 className="text-lg font-bold text-[var(--text-primary)] tracking-wide leading-none">{organizationName}</h3>
               <span className="text-[10px] text-[var(--text-secondary)] font-medium tracking-widest uppercase mt-0.5"></span>
             </div>
           </div>
 
           {/* Option Limit Config Icon (Broker Only) */}
-         {userRole === 'broker' && <button
+          {userRole === 'broker' && <button
             onClick={() => setShowLimitModal(true)}
             className="p-2 hover:bg-[var(--bg-hover)] rounded-full transition text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
             title="Configure Option Limit"
@@ -736,7 +736,7 @@ function Watchlist() {
       </div>
 
       {/* Option Limit Config Modal */}
-      {showLimitModal &&  (
+      {showLimitModal && (
         <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-[var(--bg-card)] w-[90%] max-w-sm rounded-xl border border-[var(--border-color)] shadow-2xl p-5 animate-scale-up">
             <div className="flex justify-between items-center mb-4">

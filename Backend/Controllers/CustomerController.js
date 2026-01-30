@@ -55,9 +55,36 @@ const addCustomer = asyncHandler(async (req, res) => {
 
 
 const getBrokerCustomers = asyncHandler(async (req, res) => {
-  const brokerIdFromToken = req.user._id; // Use _id for consistency
+  const loggedInUserId = req.user._id;
+  const loggedInUserRole = req.user.role;
+  
+  // By default, assume we look for customers of the logged-in user
+  let targetBrokerId = loggedInUserId;
 
-  console.log('[getBrokerCustomers] Broker ID from token:', brokerIdFromToken);
+  // If Admin/SuperBroker wants to view a specific broker's customers
+  // Check both 'admin' and 'Admin' just in case
+  if ((loggedInUserRole === 'admin' || loggedInUserRole === 'Admin') && req.query.brokerId) {
+      const requestedBrokerId = req.query.brokerId;
+      console.log('[getBrokerCustomers] Admin requested view for broker:', requestedBrokerId);
+      
+      targetBrokerId = requestedBrokerId;
+      
+      // Attempt to resolve 10-digit Login ID to ObjectId if needed
+      // Note: attached_broker_id in CustomerModel is typically ObjectId (Ref: Broker)
+      // BUT some implementations might use String ID. 
+      // Based on AuthController logic (attachedMongoBrokerId), it is ObjectId.
+      // So we MUST convert the string Login ID to ObjectId. (Missing in previous step!)
+
+      const brokerHelper = await BrokerModel.findOne({ login_id: requestedBrokerId });
+      if (brokerHelper) {
+          targetBrokerId = brokerHelper._id;
+          console.log('[getBrokerCustomers] Resolved to ObjectId:', targetBrokerId);
+      } else {
+          console.log('[getBrokerCustomers] Broker not found by Login ID, assuming targetBrokerId is already ObjectId or invalid');
+      }
+  }
+
+  console.log('[getBrokerCustomers] Target Broker ID:', targetBrokerId);
   console.log('[getBrokerCustomers] Broker name:', req.user.name);
 
   // Debug: Get ALL customers to see what broker IDs they have
@@ -70,7 +97,7 @@ const getBrokerCustomers = asyncHandler(async (req, res) => {
   })));
 
   const customers = await CustomerModel
-    .find({ attached_broker_id: brokerIdFromToken })
+    .find({ attached_broker_id: targetBrokerId })
     .select('+password'); 
 
   console.log('[getBrokerCustomers] Found customers for this broker:', customers);

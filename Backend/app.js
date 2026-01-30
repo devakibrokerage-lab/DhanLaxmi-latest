@@ -20,6 +20,7 @@ import orderRoute from "./Routes/orderRoute.js";
 import fundRoute from "./Routes/fundRoute.js"
 import registrationRoute from "./Routes/registrationRoute.js"
 import kiteAuthRoute from "./Routes/kiteAuthRoute.js"
+import superBrokerRoute from "./Routes/SuperBrokerRoute.js"
 
 export function createApp() {
   const app = express();
@@ -35,8 +36,7 @@ export function createApp() {
     "swasthikabrokerage.in",
     "https://swasthikabrokerage.in",
 
-
-    "https://dhanlaxmi-latest-1.onrender.com",
+    "https://dhanlaxmi-latest.onrender.com",
     
     process.env.FRONTEND_URL,      // Allowed frontend URL from env
   ].filter(Boolean);
@@ -108,8 +108,10 @@ export function createApp() {
   app.use("/api/quotes", authQuotes, quotesRoute);
   app.use("/api/watchlist", userWatchlistRoute);
   app.use("/api/orders", orderRoute);
+  app.use("/api/orders", orderRoute);
   app.use("/api/funds", fundRoute);
   app.use("/api/registration", registrationRoute); // Public - no auth required
+  app.use("/api/superbroker", superBrokerRoute); // New Super Broker Recycle Bin routes
 
   // Version endpoint for cache busting - INCREMENT VERSION ON EVERY DEPLOYMENT
   const APP_VERSION = '1.8.8';

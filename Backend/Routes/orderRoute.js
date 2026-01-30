@@ -1,4 +1,4 @@
-import { getOrderInstrument, postOrder, updateOrder, exitAllOpenOrder, deleteOrder, deleteAllClosedOrders, updateClosedOrderPrices } from '../Controllers/orderController.js';
+import { getOrderInstrument, postOrder, updateOrder, exitAllOpenOrder, deleteOrder, deleteAllClosedOrders, updateClosedOrderPrices } from '../Controllers/OrderController.js';
 import express from "express";
 
 const router = express.Router();

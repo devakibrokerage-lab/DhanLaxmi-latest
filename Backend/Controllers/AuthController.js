@@ -59,14 +59,23 @@ const handleUserLogin = asyncHandler(async (req, res) => {
   let role = '';
   let attachedMongoBrokerId = null;       // Broker का Mongo _id (customer के case में attached broker)
   let associatedBrokerStringId = null;    // Broker का 10-digit login_id (string)
+  let organizationName = "DHANLAXMI";     // Default Organization Name
 
   // 1) Try Broker/Admin first (by login_id)
-  user = await BrokerModel.findOne({ login_id: identifier }).select('+password');
+  user = await BrokerModel.findOne({ login_id: identifier }).select('+password +organization_name');
   if (user) {
     // Check if user is admin or broker
     role = user.role || 'broker';
     attachedMongoBrokerId = user._id;
     associatedBrokerStringId = user.login_id;
+    console.log('[Login] Broker Found (Raw):', { 
+        id: user.login_id, 
+        name: user.name, 
+        role: user.role,
+        orgNameFromDB: user.organization_name,
+        allKeys: Object.keys(user.toObject())
+    });
+    if (user.organization_name) organizationName = user.organization_name;
   }
 
   // 2) Else try Customer (by customer_id)
@@ -80,8 +89,11 @@ const handleUserLogin = asyncHandler(async (req, res) => {
       attachedMongoBrokerId = customer.attached_broker_id || null;
 
       if (attachedMongoBrokerId) {
-        const brokerDetail = await BrokerModel.findById(attachedMongoBrokerId).select('login_id');
-        if (brokerDetail) associatedBrokerStringId = brokerDetail.login_id;
+        const brokerDetail = await BrokerModel.findById(attachedMongoBrokerId).select('login_id organization_name');
+        if (brokerDetail) {
+             associatedBrokerStringId = brokerDetail.login_id;
+             if (brokerDetail.organization_name) organizationName = brokerDetail.organization_name;
+        }
       }
     }
   }
@@ -116,11 +128,12 @@ const handleUserLogin = asyncHandler(async (req, res) => {
 
   return res.status(200).json({
     success: true,
-    message: `${role.charAt(0).toUpperCase() + role.slice(1)} login successful.`,
+    message: `Login successful....`,
     token: generateToken(user._id, role, mongoBrokerId, stringBrokerId),
     name: user.name || user.fullName || user.customer_name || 'User',
     role,
     associatedBrokerStringId: stringBrokerId,
+    organizationName, // Send to frontend
   });
 });
 

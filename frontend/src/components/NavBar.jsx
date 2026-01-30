@@ -56,7 +56,7 @@ const NavBar = () => {
                     <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center border border-[var(--border-color)]">
                         <span className="text-white font-bold text-lg font-sans">DL</span>
                     </div>
-                    <span className="text-xl font-bold text-[var(--text-primary)]">DHANLAXMI</span>
+                    <span className="text-xl font-bold text-[var(--text-primary)]">{localStorage.getItem('organizationName') || 'DHANLAXMI'}</span>
                 </div>
                 <nav className="flex space-x-6">
                     {NAV_ITEMS.map(item => (

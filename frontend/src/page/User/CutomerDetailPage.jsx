@@ -140,7 +140,7 @@ export default function CustomerDetailsPage() {
         const url = API_URL;
 
         const res = await axios.get(
-          `${url}/api/auth/getCustomers`,
+          `${url}/api/auth/getCustomers?brokerId=${displayBrokerId}`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
 

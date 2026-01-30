@@ -401,7 +401,7 @@ export default function Invoice() {
                 {/* Footer Note */}
                 <div className="mt-8 text-center text-[10px] text-[#9ca3af] footer-line">
                     {/* <p>This is a computer generated invoice and does not require a signature.</p> */}
-                    <p className="mt-1">© 2025 DhanLaxmi Broking Ltd. All rights reserved.</p>
+                    <p className="mt-1">© 2025 {localStorage.getItem('organizationName') || 'DhanLaxmi'} Broking Ltd. All rights reserved.</p>
                 </div>
 
             </div>

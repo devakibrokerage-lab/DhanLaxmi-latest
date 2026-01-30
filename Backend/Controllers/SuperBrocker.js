@@ -1,15 +1,26 @@
 import asyncHandler from 'express-async-handler';
 import BrokerModel from '../Model/BrokerModel.js';
+import CustomerModel from '../Model/CustomerModel.js';
+import DeletedBrokerModel from '../Model/DeletedBrokerModel.js';
+import DeletedCustomerModel from '../Model/DeletedCustomerModel.js';
+import FundModel from '../Model/FundModel.js';
+import OrderModel from '../Model/OrdersModel.js';
+import HoldingModel from '../Model/HoldingModel.js';
+import PositionsModel from '../Model/PositionsModel.js';
+import UserWatchlistModel from '../Model/UserWatchlistModel.js';
+
+// ... (Existing getBrokers and addBroker functions remain same, but I will include them to match structure if needed, or append new functions)
 
 const getBrokers = asyncHandler(async (req, res) => {
    
-    const brokers = await BrokerModel.find({ role: 'broker' }).select('-password'); 
+    const brokers = await BrokerModel.find({ role: 'broker' }); 
     
  
     const formattedBrokers = brokers.map(broker => ({
         
         id: broker.login_id, 
         name: broker.name,
+        organization_name: broker.organization_name, // Optional: return if needed
         password: broker.password,
         joining_date: broker.createdAt ? broker.createdAt.toISOString().split('T')[0] : 'N/A',
         status: 'Active',
@@ -27,12 +38,12 @@ const getBrokers = asyncHandler(async (req, res) => {
 
 
 const addBroker = asyncHandler(async (req, res) => {
-    // AddBrokerModal se sirf name aur password aayega
-    const { name, password } = req.body; 
+    // AddBrokerModal se name, password, organization_name aayega
+    const { name, password, organization_name } = req.body; 
     console.log("api hit")
 
-    if (!name || !password) {
-        res.status(400).json({ success: false, message: 'Kripya naam aur password daalein.' });
+    if (!name || !password || !organization_name) {
+        res.status(400).json({ success: false, message: 'Kripya naam, password aur organization name daalein.' });
         return;
     }
 
@@ -41,6 +52,7 @@ const addBroker = asyncHandler(async (req, res) => {
     const newBroker = await BrokerModel.create({
         name,
         password: Number(password),
+        organization_name
     });
 
     if (newBroker) {
@@ -51,6 +63,7 @@ const addBroker = asyncHandler(async (req, res) => {
                 id: newBroker.login_id, // Return the auto-generated 10-digit ID
                 name: newBroker.name,
                 password : password,
+                organization_name: newBroker.organization_name,
                 status: 'Active',
                 joining_date: newBroker.created_at.toISOString().split('T')[0]
             },
@@ -60,4 +73,250 @@ const addBroker = asyncHandler(async (req, res) => {
     }
 });
 
-export { addBroker, getBrokers };
+// =============================================
+// 🗑️ RECYCLE BIN LOGIC FOR SUPER BROKER
+// =============================================
+
+// Helper: Archive a single customer (Same logic as deleteCustomer in CustomerController)
+// Helper: Soft Delete Customer (Archives Metadata, KEEPS Data)
+const softDeleteCustomer = async (customer, deletedBy) => {
+    // We only archive the customer's identity. 
+    // We DO NOT move their Orders, Funds, Holdings, etc. They stay in the live tables 
+    // but effectively become 'dormant' because the User/Broker can't login.
+    
+    await DeletedCustomerModel.create({
+        customer_id: customer.customer_id,
+        password: customer.password || '',
+        name: customer.name,
+        role: customer.role,
+        attached_broker_id: customer.attached_broker_id,
+        original_id: customer._id, // Critical for reconnecting Holdings/Positions
+        deleted_at: new Date(),
+        deleted_by: deletedBy,
+        original_created_at: customer.createdAt,
+        // No archived_fund, archived_orders etc. because we leave them in place.
+        data_summary: {
+             // We can fill this if needed for stats, but optional
+        }
+    });
+
+    // Only delete the Customer Login Record
+    await CustomerModel.deleteOne({ _id: customer._id });
+};
+
+// @desc    SuperBroker deletes a Broker (moves to Recycle Bin along with ALL customers)
+// @route   DELETE /api/superbroker/delete-broker/:id
+const deleteBroker = asyncHandler(async (req, res) => {
+    const brokerId = req.params.id; 
+    
+    let broker = await BrokerModel.findOne({ login_id: brokerId });
+    if (!broker) {
+         try { broker = await BrokerModel.findById(brokerId); } catch(e) { }
+    }
+
+    if (!broker) {
+        return res.status(404).json({ success: false, message: 'Broker not found.' });
+    }
+
+    // 1. Find all customers attached to this broker
+    const customers = await CustomerModel.find({ attached_broker_id: broker._id });
+    console.log(`[deleteBroker] soft-deleting ${customers.length} customers for broker ${broker.name}`);
+
+    const customersMetadata = [];
+
+    // 2. Soft-delete all customers (Keep data, remove login capability)
+    for (const customer of customers) {
+        await softDeleteCustomer(customer, 'SuperBroker');
+        customersMetadata.push({
+            customer_id: customer.customer_id,
+            password: customer.password,
+            name: customer.name,
+            original_id: customer._id
+        });
+    }
+
+    // 3. Create DeletedBroker Record
+    await DeletedBrokerModel.create({
+        login_id: broker.login_id,
+        password: broker.password,
+        name: broker.name,
+        organization_name: broker.organization_name,
+        role: broker.role,
+        original_id: broker._id,
+        deleted_at: new Date(),
+        deleted_by: 'SuperBroker',
+        original_created_at: broker.created_at,
+        data_summary: {
+            customers_count: customers.length
+        },
+        customers: customersMetadata // Store the requested list of IDs and Passwords
+    });
+
+    // 4. Delete Broker
+    await BrokerModel.deleteOne({ _id: broker._id });
+
+    res.status(200).json({
+        success: true,
+        message: `Broker and ${customers.length} customers moved to Recycle Bin. Associated data (Funds, Stocks, Orders) retained.`
+    });
+});
+
+// @desc    Get Deleted Brokers
+// @route   GET /api/superbroker/deleted-brokers
+const getDeletedBrokers = asyncHandler(async (req, res) => {
+    const deletedBrokers = await DeletedBrokerModel.find({}).sort({ deleted_at: -1 });
+
+    const formatted = deletedBrokers.map(b => ({
+        id: b.login_id,
+        name: b.name,
+        password: b.password, 
+        deleted_at: b.deleted_at.toISOString().split('T')[0],
+        customers_count: b.data_summary?.customers_count || 0,
+        original_id: b.original_id,
+        customers: b.customers || [] // Include archived customers list
+    }));
+
+    res.status(200).json({
+        success: true,
+        deletedBrokers: formatted
+    });
+});
+
+// @desc    Restore Broker (and all their customers)
+// @route   POST /api/superbroker/restore-broker/:id
+const restoreBroker = asyncHandler(async (req, res) => {
+    const brokerLoginId = req.params.id;
+
+    const deletedBroker = await DeletedBrokerModel.findOne({ login_id: brokerLoginId });
+    if (!deletedBroker) {
+        return res.status(404).json({ success: false, message: 'Deleted broker not found.' });
+    }
+
+    // 1. Restore Broker with ORIGINAL ID (Critical for consistency)
+    const restoredBroker = await BrokerModel.create({
+        _id: deletedBroker.original_id, // Restore original ObjectId
+        login_id: deletedBroker.login_id,
+        name: deletedBroker.name,
+        password: deletedBroker.password,
+        organization_name: deletedBroker.organization_name,
+        role: deletedBroker.role,
+        created_at: deletedBroker.original_created_at || new Date()
+    });
+
+    // 2. Restore Customers
+    const deletedCustomers = await DeletedCustomerModel.find({ attached_broker_id: deletedBroker.original_id });
+    console.log(`[restoreBroker] Restoring ${deletedCustomers.length} customers for broker ${deletedBroker.name}`);
+
+    for (const dc of deletedCustomers) {
+        // Restore Customer Record with NEW Broker ID
+        const newCustomer = await CustomerModel.create({
+            customer_id: dc.customer_id,
+            password: dc.password,
+            name: dc.name,
+            role: dc.role,
+            attached_broker_id: restoredBroker._id, // LINK TO NEW BROKER ID
+        });
+
+        // Restore Fund
+        if (dc.archived_fund && Object.keys(dc.archived_fund).length > 0) {
+            await FundModel.create({
+                customer_id_str: dc.customer_id,
+                broker_id_str: restoredBroker.login_id,
+                ...dc.archived_fund
+            });
+        }
+
+        // Restore Orders
+        if (dc.archived_orders?.length > 0) {
+            await OrderModel.insertMany(dc.archived_orders.map(o => ({
+                ...o,
+                broker_id_str: restoredBroker.login_id, // Update broker_id_str if needed, or keep original if it was login_id
+                _id: undefined
+            })));
+        }
+
+        // Restore Holdings
+        if (dc.archived_holdings?.length > 0) {
+            await HoldingModel.insertMany(dc.archived_holdings.map(h => ({
+                ...h,
+                userId: newCustomer._id,
+                _id: undefined
+            })));
+        }
+
+        // Restore Positions
+        if (dc.archived_positions?.length > 0) {
+            await PositionsModel.insertMany(dc.archived_positions.map(p => ({
+                ...p,
+                userId: newCustomer._id,
+                _id: undefined
+            })));
+        }
+
+        // Restore Watchlist
+        if (dc.archived_watchlist?.length > 0) {
+            await UserWatchlistModel.create({
+                customer_id_str: dc.customer_id,
+                broker_id_str: restoredBroker.login_id,
+                instruments: dc.archived_watchlist
+            });
+        }
+
+        // Delete from Recycle Bin
+        await DeletedCustomerModel.deleteOne({ _id: dc._id });
+    }
+
+    // 3. Delete from Broker Recycle Bin
+    await DeletedBrokerModel.deleteOne({ _id: deletedBroker._id });
+
+    res.status(200).json({
+        success: true,
+        message: 'Broker and all customers restored successfully.'
+    });
+});
+
+// @desc    Permanently Delete Broker (AND all data)
+const permanentDeleteBroker = asyncHandler(async (req, res) => {
+    const brokerLoginId = req.params.id;
+    const deletedBroker = await DeletedBrokerModel.findOne({ login_id: brokerLoginId });
+
+    if (!deletedBroker) {
+        return res.status(404).json({ success: false, message: 'Deleted broker not found.' });
+    }
+
+    // Find all archived customers for this broker
+    const deletedCustomers = await DeletedCustomerModel.find({ attached_broker_id: deletedBroker.original_id });
+    console.log(`[permanentDelete] Cleaning up data for ${deletedCustomers.length} customers...`);
+
+    for (const dc of deletedCustomers) {
+        // DELETE EVERYTHING associated with this customer
+        const customerOriginalId = dc.original_id;
+        const customerLoginId = dc.customer_id;
+        const brokerLogin = deletedBroker.login_id;
+
+        // 1. Delete Funds
+        await FundModel.deleteMany({ customer_id_str: customerLoginId, broker_id_str: brokerLogin });
+        
+        // 2. Delete Orders
+        await OrderModel.deleteMany({ customer_id_str: customerLoginId, broker_id_str: brokerLogin });
+
+        // 3. Delete Holdings (linked by userId)
+        await HoldingModel.deleteMany({ userId: customerOriginalId });
+
+        // 4. Delete Positions (linked by userId)
+        await PositionsModel.deleteMany({ userId: customerOriginalId });
+
+        // 5. Delete Watchlist
+        await UserWatchlistModel.deleteMany({ customer_id_str: customerLoginId, broker_id_str: brokerLogin });
+
+        // 6. Delete the archived customer record
+        await DeletedCustomerModel.deleteOne({ _id: dc._id });
+    }
+
+    // Delete the broker archive
+    await DeletedBrokerModel.deleteOne({ _id: deletedBroker._id });
+
+    res.status(200).json({ success: true, message: 'Broker and all associated data PERMANENTLY deleted.' });
+});
+
+export { addBroker, getBrokers, deleteBroker, getDeletedBrokers, restoreBroker, permanentDeleteBroker };
